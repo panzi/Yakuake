@@ -25,7 +25,7 @@
 #include <KActionCollection>
 #include <KApplication>
 #include <KColorScheme>
-#include <kde_terminal_interface.h>
+#include <kde_terminal_interface_v2.h>
 #include <KLocalizedString>
 #include <KMessageBox>
 #include <KPluginFactory>
@@ -36,13 +36,14 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QWidget>
+#include <QFileInfo>
 
 #include <QKeyEvent>
 
 
 int Terminal::m_availableTerminalId = 0;
 
-Terminal::Terminal(QWidget* parent) : QObject(parent)
+Terminal::Terminal(const QString& workingDir, QWidget* parent) : QObject(parent)
 {
     m_terminalId = m_availableTerminalId;
     m_availableTerminalId++;
@@ -78,8 +79,8 @@ Terminal::Terminal(QWidget* parent) : QObject(parent)
 
         disableOffendingPartActions();
 
-        m_terminalInterface = qobject_cast<TerminalInterface*>(m_part);
-        if (m_terminalInterface) m_terminalInterface->showShellInDir(KUser().homeDir());
+        m_terminalInterface = qobject_cast<TerminalInterfaceV2*>(m_part);
+        if (m_terminalInterface) m_terminalInterface->showShellInDir(workingDir);
     }
     else
         displayKPartLoadError();
@@ -132,6 +133,22 @@ bool Terminal::eventFilter(QObject* /* watched */, QEvent* event)
     }
 
     return false;
+}
+
+QString Terminal::currentDir(bool *ok) const {
+    if (m_terminalInterface)
+    {
+        QFileInfo info( QString("/proc/%1/cwd").arg(m_terminalInterface->terminalProcessId()) );
+
+        if (info.isReadable() && info.isSymLink())
+        {
+            if (ok) *ok = true;
+            return info.symLinkTarget();
+        }
+    }
+
+    if (ok) *ok = false;
+    return QString();
 }
 
 void Terminal::displayKPartLoadError()
