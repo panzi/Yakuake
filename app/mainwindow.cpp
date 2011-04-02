@@ -37,11 +37,7 @@
 #include <KHelpMenu>
 #include <KMenu>
 #include <KMessageBox>
-#if KDE_IS_VERSION(4,3,95)
-    #include <KNotification>
-#else
-    #include <KPassivePopup>
-#endif
+#include <KNotification>
 #include <KShortcutsDialog>
 #include <KStandardAction>
 #include <KToggleFullScreenAction>
@@ -230,7 +226,7 @@ void MainWindow::setupActions()
     action = actionCollection()->addAction("new-session");
     action->setText(i18nc("@action", "New Session"));
     action->setIcon(KIcon("tab-new"));
-    action->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_N));
+    action->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_T));
     connect(action, SIGNAL(triggered()), m_sessionStack, SLOT(addSession()));
 
     action = actionCollection()->addAction("new-session-two-horizontal");
@@ -251,7 +247,7 @@ void MainWindow::setupActions()
     action = actionCollection()->addAction("close-session");
     action->setText(i18nc("@action", "Close Session"));
     action->setIcon(KIcon("tab-close"));
-    action->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_S));
+    action->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_W));
     connect(action, SIGNAL(triggered()), this, SLOT(handleContextDependentAction()));
     m_contextDependentActions << action;
 
@@ -338,14 +334,14 @@ void MainWindow::setupActions()
     action = actionCollection()->addAction("split-left-right");
     action->setText(i18nc("@action", "Split Left/Right"));
     action->setIcon(KIcon("view-split-left-right"));
-    action->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_L));
+    action->setShortcut(QKeySequence(Qt::CTRL+ Qt::Key_ParenLeft));
     connect(action, SIGNAL(triggered()), this, SLOT(handleContextDependentAction()));
     m_contextDependentActions << action;
 
     action = actionCollection()->addAction("split-top-bottom");
     action->setText(i18nc("@action", "Split Top/Bottom"));
     action->setIcon(KIcon("view-split-top-bottom"));
-    action->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_T));
+    action->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_ParenRight));
     connect(action, SIGNAL(triggered()), this, SLOT(handleContextDependentAction()));
     m_contextDependentActions << action;
 
@@ -857,11 +853,41 @@ void MainWindow::toggleWindowState()
 {
     bool visible = isVisible();
 
-    if (visible && !isActiveWindow() && Settings::keepOpen() && Settings::toggleToFocus())
+    if (visible && !isActiveWindow() && Settings::keepOpen())
     {
-        KWindowSystem::forceActiveWindow(winId());
+        // Window is open but doesn't have focus; it's set to stay open
+        // regardless of focus loss.
 
-        return;
+        if (Settings::toggleToFocus())
+        {
+            // The open/retract action is set to focus the window when it's
+            // open but lacks focus. The following will cause it to receive
+            // focus, and in an environment with multiple virtual desktops
+            // will also cause the window manager to switch to the virtual
+            // desktop the window resides on.
+
+            KWindowSystem::forceActiveWindow(winId());
+
+            return;
+        }
+        else if (!Settings::showOnAllDesktops()
+                 &&  KWindowSystem::windowInfo(winId(), NET::WMDesktop).desktop() != KWindowSystem::currentDesktop())
+        {
+            // The open/restract action isn't set to focus the window, but
+            // the window is currently on another virtual desktop (the option
+            // to show it on all of them is disabled), so closing it doesn't
+            // make sense and we're opting to show it instead to avoid re-
+            // quiring the user to invoke the action twice to get to see
+            // Yakuake. Just forcing focus would cause the window manager to
+            // switch to the virtual desktop the window currently resides on,
+            // so move the window to the current desktop before doing so.
+
+            KWindowSystem::setOnDesktop(winId(), KWindowSystem::currentDesktop());
+
+            KWindowSystem::forceActiveWindow(winId());
+
+            return;
+        }
     }
 
 #if defined(Q_WS_X11)
@@ -1186,19 +1212,8 @@ void MainWindow::showStartupPopup()
     QString title(i18nc("@title:window", "<application>Yakuake</application> Notification"));
     QString message(i18nc("@info", "Application successfully started.<nl/>" "Press <shortcut>%1</shortcut> to use it ...", shortcut));
 
-#if KDE_IS_VERSION(4,3,95)
     KNotification::event(KNotification::Notification, title, message,
         KIconLoader::global()->loadIcon("yakuake", KIconLoader::Desktop));
-#else
-    KPassivePopup* popup = new KPassivePopup();
-
-    popup->setAutoDelete(true);
-    popup->setTimeout(5000);
-    popup->setView(popup->standardView(title, message,
-        KIconLoader::global()->loadIcon("yakuake", KIconLoader::Small)));
-
-    popup->show(getDesktopGeometry().topLeft());
-#endif
 }
 
 void MainWindow::showFirstRunDialog()
