@@ -7,7 +7,7 @@
   published by the Free Software Foundation; either version 2 of
   the License or (at your option) version 3 or any later version
   accepted by the membership of KDE e.V. (or its successor appro-
-  ved by the membership of KDE e.V.), which shall act as a proxy 
+  ved by the membership of KDE e.V.), which shall act as a proxy
   defined in Section 14 of version 3 of the license.
 
   This program is distributed in the hope that it will be useful,
@@ -25,6 +25,8 @@
 
 
 #include "splitter.h"
+
+#include <kdeversion.h>
 
 #include <QMap>
 #include <QObject>
@@ -54,14 +56,29 @@ class Session : public QObject
         bool hasTerminal(int terminalId);
         Terminal* getTerminal(int terminalId);
 
+        bool closable() { return m_closable; }
+        void setClosable(bool closable) { m_closable = closable; }
+
         bool keyboardInputEnabled();
         void setKeyboardInputEnabled(bool enabled);
         bool keyboardInputEnabled(int terminalId);
         void setKeyboardInputEnabled(int terminalId, bool enabled);
+        bool hasTerminalsWithKeyboardInputEnabled();
         bool hasTerminalsWithKeyboardInputDisabled();
 
-        bool closable() { return m_closable; }
-        void setClosable(bool closable) { m_closable = closable; }
+        bool monitorActivityEnabled();
+        void setMonitorActivityEnabled(bool enabled);
+        bool monitorActivityEnabled(int terminalId);
+        void setMonitorActivityEnabled(int terminalId, bool enabled);
+        bool hasTerminalsWithMonitorActivityEnabled();
+        bool hasTerminalsWithMonitorActivityDisabled();
+
+        bool monitorSilenceEnabled();
+        void setMonitorSilenceEnabled(bool enabled);
+        bool monitorSilenceEnabled(int terminalId);
+        void setMonitorSilenceEnabled(int terminalId, bool enabled);
+        bool hasTerminalsWithMonitorSilenceEnabled();
+        bool hasTerminalsWithMonitorSilenceDisabled();
 
 
     public slots:
@@ -80,12 +97,16 @@ class Session : public QObject
         void manageProfiles();
         void editProfile();
 
+        void reconnectMonitorActivitySignals();
+
 
     signals:
         void titleChanged(const QString& title);
         void titleChanged(int sessionId, const QString& title);
         void terminalManuallyActivated(Terminal* terminal);
         void keyboardInputBlocked(Terminal* terminal);
+        void activityDetected(Terminal* terminal);
+        void silenceDetected(Terminal* terminal);
         void destroyed(int sessionId);
 
 
@@ -117,4 +138,4 @@ class Session : public QObject
         bool m_closable;
 };
 
-#endif 
+#endif

@@ -66,6 +66,8 @@ TabBar::TabBar(MainWindow* mainWindow) : QWidget(mainWindow)
     connect(m_tabContextMenu, SIGNAL(hovered(QAction*)), this, SLOT(contextMenuActionHovered(QAction*)));
 
     m_toggleKeyboardInputMenu = new KMenu(i18nc("@title:menu", "Disable Keyboard Input"), this);
+    m_toggleMonitorActivityMenu = new KMenu(i18nc("@title:menu", "Monitor for Activity"), this);
+    m_toggleMonitorSilenceMenu = new KMenu(i18nc("@title:menu", "Monitor for Silence"), this);
 
     m_sessionMenu = new KMenu(this);
     connect(m_sessionMenu, SIGNAL(aboutToShow()), this, SLOT(readySessionMenu()));
@@ -122,8 +124,12 @@ void TabBar::readyTabContextMenu()
         m_tabContextMenu->addSeparator();
         m_tabContextMenu->addAction(m_mainWindow->actionCollection()->action("edit-profile"));
         m_tabContextMenu->addAction(m_mainWindow->actionCollection()->action("rename-session"));
-        m_tabContextMenu->addMenu(m_toggleKeyboardInputMenu);
         m_tabContextMenu->addAction(m_mainWindow->actionCollection()->action("toggle-session-prevent-closing"));
+        m_tabContextMenu->addMenu(m_toggleKeyboardInputMenu);
+#if KDE_IS_VERSION(4, 7, 1)
+        m_tabContextMenu->addMenu(m_toggleMonitorActivityMenu);
+        m_tabContextMenu->addMenu(m_toggleMonitorSilenceMenu);
+#endif
         m_tabContextMenu->addSeparator();
         m_tabContextMenu->addAction(m_mainWindow->actionCollection()->action("move-session-left"));
         m_tabContextMenu->addAction(m_mainWindow->actionCollection()->action("move-session-right"));
@@ -166,11 +172,19 @@ void TabBar::updateToggleActions(int sessionId)
     KActionCollection* actionCollection = m_mainWindow->actionCollection();
     SessionStack* sessionStack = m_mainWindow->sessionStack();
 
-    QAction* toggleAction = actionCollection->action("toggle-session-keyboard-input");
-    toggleAction->setChecked(!sessionStack->isSessionKeyboardInputEnabled(sessionId));
-
-    toggleAction = actionCollection->action("toggle-session-prevent-closing");
+    QAction* toggleAction = actionCollection->action("toggle-session-prevent-closing");
     toggleAction->setChecked(!sessionStack->isSessionClosable(sessionId));
+
+    toggleAction = actionCollection->action("toggle-session-keyboard-input");
+    toggleAction->setChecked(!sessionStack->hasTerminalsWithKeyboardInputEnabled(sessionId));
+
+#if KDE_IS_VERSION(4, 7, 1)
+    toggleAction = actionCollection->action("toggle-session-monitor-activity");
+    toggleAction->setChecked(!sessionStack->hasTerminalsWithMonitorActivityDisabled(sessionId));
+
+    toggleAction = actionCollection->action("toggle-session-monitor-silence");
+    toggleAction->setChecked(!sessionStack->hasTerminalsWithMonitorSilenceDisabled(sessionId));
+#endif
 }
 
 void TabBar::updateToggleKeyboardInputMenu(int sessionId)
@@ -221,6 +235,102 @@ void TabBar::updateToggleKeyboardInputMenu(int sessionId)
     }
 }
 
+void TabBar::updateToggleMonitorActivityMenu(int sessionId)
+{
+    if (!m_tabs.contains(sessionId)) return;
+
+    QAction* toggleMonitorActivityAction = m_mainWindow->actionCollection()->action("toggle-session-monitor-activity");
+    QAction* anchor = m_toggleMonitorActivityMenu->menuAction();
+
+    SessionStack* sessionStack = m_mainWindow->sessionStack();
+
+    QStringList terminalIds = sessionStack->terminalIdsForSessionId(sessionId).split(',', QString::SkipEmptyParts);
+
+    m_toggleMonitorActivityMenu->clear();
+
+    if (terminalIds.count() <= 1)
+    {
+        toggleMonitorActivityAction->setText(i18nc("@action", "Monitor for Activity"));
+        m_tabContextMenu->insertAction(anchor, toggleMonitorActivityAction);
+        m_toggleMonitorActivityMenu->menuAction()->setVisible(false);
+    }
+    else
+    {
+        toggleMonitorActivityAction->setText(i18nc("@action", "In This Session"));
+        m_toggleMonitorActivityMenu->menuAction()->setVisible(true);
+
+        m_tabContextMenu->removeAction(toggleMonitorActivityAction);
+        m_toggleMonitorActivityMenu->addAction(toggleMonitorActivityAction);
+
+        m_toggleMonitorActivityMenu->addSeparator();
+
+        int count = 0;
+
+        QStringListIterator i(terminalIds);
+
+        while (i.hasNext())
+        {
+            int terminalId = i.next().toInt();
+
+            ++count;
+
+            QAction* action = m_toggleMonitorActivityMenu->addAction(i18nc("@action", "In Terminal %1", count));
+            action->setCheckable(true);
+            action->setChecked(sessionStack->isTerminalMonitorActivityEnabled(terminalId));
+            action->setData(terminalId);
+            connect(action, SIGNAL(triggered(bool)), m_mainWindow, SLOT(handleToggleTerminalMonitorActivity(bool)));
+        }
+    }
+}
+
+void TabBar::updateToggleMonitorSilenceMenu(int sessionId)
+{
+    if (!m_tabs.contains(sessionId)) return;
+
+    QAction* toggleMonitorSilenceAction = m_mainWindow->actionCollection()->action("toggle-session-monitor-silence");
+    QAction* anchor = m_toggleMonitorSilenceMenu->menuAction();
+
+    SessionStack* sessionStack = m_mainWindow->sessionStack();
+
+    QStringList terminalIds = sessionStack->terminalIdsForSessionId(sessionId).split(',', QString::SkipEmptyParts);
+
+    m_toggleMonitorSilenceMenu->clear();
+
+    if (terminalIds.count() <= 1)
+    {
+        toggleMonitorSilenceAction->setText(i18nc("@action", "Monitor for Silence"));
+        m_tabContextMenu->insertAction(anchor, toggleMonitorSilenceAction);
+        m_toggleMonitorSilenceMenu->menuAction()->setVisible(false);
+    }
+    else
+    {
+        toggleMonitorSilenceAction->setText(i18nc("@action", "In This Session"));
+        m_toggleMonitorSilenceMenu->menuAction()->setVisible(true);
+
+        m_tabContextMenu->removeAction(toggleMonitorSilenceAction);
+        m_toggleMonitorSilenceMenu->addAction(toggleMonitorSilenceAction);
+
+        m_toggleMonitorSilenceMenu->addSeparator();
+
+        int count = 0;
+
+        QStringListIterator i(terminalIds);
+
+        while (i.hasNext())
+        {
+            int terminalId = i.next().toInt();
+
+            ++count;
+
+            QAction* action = m_toggleMonitorSilenceMenu->addAction(i18nc("@action", "In Terminal %1", count));
+            action->setCheckable(true);
+            action->setChecked(sessionStack->isTerminalMonitorSilenceEnabled(terminalId));
+            action->setData(terminalId);
+            connect(action, SIGNAL(triggered(bool)), m_mainWindow, SLOT(handleToggleTerminalMonitorSilence(bool)));
+        }
+    }
+}
+
 void TabBar::contextMenuActionHovered(QAction* action)
 {
     bool ok = false;
@@ -252,6 +362,10 @@ void TabBar::contextMenuEvent(QContextMenuEvent* event)
         int sessionId = sessionAtTab(index);
         updateToggleActions(sessionId);
         updateToggleKeyboardInputMenu(sessionId);
+#if KDE_IS_VERSION(4, 7, 1)
+        updateToggleMonitorActivityMenu(sessionId);
+        updateToggleMonitorSilenceMenu(sessionId);
+#endif
 
         m_mainWindow->setContextDependentActionsQuiet(true);
 
@@ -272,6 +386,10 @@ void TabBar::contextMenuEvent(QContextMenuEvent* event)
         updateMoveActions(m_tabs.indexOf(m_selectedSessionId));
         updateToggleActions(m_selectedSessionId);
         updateToggleKeyboardInputMenu(m_selectedSessionId);
+#if KDE_IS_VERSION(4, 7, 1)
+        updateToggleMonitorActivityMenu(m_selectedSessionId);
+        updateToggleMonitorSilenceMenu(m_selectedSessionId);
+#endif
     }
 
     QWidget::contextMenuEvent(event);
@@ -369,10 +487,10 @@ int TabBar::drawButton(int x, int y, int index, QPainter& painter)
         if (selected)
             painter.drawTiledPixmap(x, y,
                     m_skin->tabBarPreventClosingImagePosition().x() +
-                    m_skin->tabBarPreventClosingImage().width(), height(), 
+                    m_skin->tabBarPreventClosingImage().width(), height(),
                     m_skin->tabBarSelectedBackgroundImage());
         else
-            painter.drawTiledPixmap(x, y, 
+            painter.drawTiledPixmap(x, y,
                     m_skin->tabBarPreventClosingImagePosition().x() +
                     m_skin->tabBarPreventClosingImage().width(), height(),
                     m_skin->tabBarUnselectedBackgroundImage());
@@ -640,7 +758,7 @@ void TabBar::removeTab(int sessionId)
     m_tabTitles.remove(sessionId);
 
     if (m_tabs.count() == 0)
-        emit newTabRequested();
+        emit lastTabClosed();
     else
         emit tabSelected(m_tabs.last());
 }

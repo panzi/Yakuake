@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2008-2009 by Eike Hein <hein@kde.org>
+  Copyright (C) 2008-2011 by Eike Hein <hein@kde.org>
   Copyright (C) 2009 by Juan Carlos Torres <carlosdgtorres@gmail.com>
 
   This program is free software; you can redistribute it and/or
@@ -28,6 +28,7 @@
 #include "sessionstack.h"
 #include "skin.h"
 #include "tabbar.h"
+#include "terminal.h"
 #include "titlebar.h"
 #include "ui_behaviorsettings.h"
 
@@ -38,6 +39,8 @@
 #include <KMenu>
 #include <KMessageBox>
 #include <KNotification>
+#include <KNotifyConfigWidget>
+#include <KPushButton>
 #include <KShortcutsDialog>
 #include <KStandardAction>
 #include <KToggleFullScreenAction>
@@ -80,18 +83,20 @@ MainWindow::MainWindow(QWidget* parent)
     setupMenu();
 
     connect(m_tabBar, SIGNAL(newTabRequested()), m_sessionStack, SLOT(addSession()));
+    connect(m_tabBar, SIGNAL(lastTabClosed()), m_tabBar, SIGNAL(newTabRequested()));
+    connect(m_tabBar, SIGNAL(lastTabClosed()), this, SLOT(handleLastTabClosed()));
     connect(m_tabBar, SIGNAL(tabSelected(int)), m_sessionStack, SLOT(raiseSession(int)));
     connect(m_tabBar, SIGNAL(tabClosed(int)), m_sessionStack, SLOT(removeSession(int)));
     connect(m_tabBar, SIGNAL(requestTerminalHighlight(int)), m_sessionStack, SLOT(handleTerminalHighlightRequest(int)));
     connect(m_tabBar, SIGNAL(requestRemoveTerminalHighlight()), m_sessionStack, SIGNAL(removeTerminalHighlight()));
     connect(m_tabBar, SIGNAL(tabContextMenuClosed()), m_sessionStack, SIGNAL(removeTerminalHighlight()));
 
-    connect(m_sessionStack, SIGNAL(sessionAdded(int, const QString&)),
-        m_tabBar, SLOT(addTab(int, const QString&)));
+    connect(m_sessionStack, SIGNAL(sessionAdded(int,QString)),
+        m_tabBar, SLOT(addTab(int,QString)));
     connect(m_sessionStack, SIGNAL(sessionRaised(int)), m_tabBar, SLOT(selectTab(int)));
     connect(m_sessionStack, SIGNAL(sessionRemoved(int)), m_tabBar, SLOT(removeTab(int)));
-    connect(m_sessionStack, SIGNAL(activeTitleChanged(const QString&)),
-        m_titleBar, SLOT(setTitle(const QString&)));
+    connect(m_sessionStack, SIGNAL(activeTitleChanged(QString)),
+        m_titleBar, SLOT(setTitle(QString)));
 
     connect(&m_mousePoller, SIGNAL(timeout()), this, SLOT(pollMouse()));
 
@@ -109,7 +114,7 @@ MainWindow::MainWindow(QWidget* parent)
     }
     else
     {
-        if (Settings::showPopup()) showStartupPopup();
+        showStartupPopup();
         if (Settings::pollMouse()) toggleMousePoll(true);
     }
 
@@ -177,6 +182,7 @@ void MainWindow::setupActions()
     action = KStandardAction::aboutKDE(m_helpMenu, SLOT(aboutKDE()), actionCollection());
 
     action = KStandardAction::keyBindings(this, SLOT(configureKeys()), actionCollection());
+    action = KStandardAction::configureNotifications(this, SLOT(configureNotifications()), actionCollection());
     action = KStandardAction::preferences(this, SLOT(configureApp()), actionCollection());
 
     action = KStandardAction::whatsThis(this, SLOT(whatsThis()), actionCollection());
@@ -345,17 +351,33 @@ void MainWindow::setupActions()
     connect(action, SIGNAL(triggered()), this, SLOT(handleContextDependentAction()));
     m_contextDependentActions << action;
 
+    action = actionCollection()->addAction("toggle-session-prevent-closing");
+    action->setText(i18nc("@action", "Prevent Closing"));
+    action->setCheckable(true);
+    connect(action, SIGNAL(triggered(bool)), this, SLOT(handleContextDependentToggleAction(bool)));
+    m_contextDependentActions << action;
+
     action = actionCollection()->addAction("toggle-session-keyboard-input");
     action->setText(i18nc("@action", "Disable Keyboard Input"));
     action->setCheckable(true);
     connect(action, SIGNAL(triggered(bool)), this, SLOT(handleContextDependentToggleAction(bool)));
     m_contextDependentActions << action;
 
-    action = actionCollection()->addAction("toggle-session-prevent-closing");
-    action->setText(i18nc("@action", "Prevent Closing"));
+#if KDE_IS_VERSION(4, 7, 1)
+    action = actionCollection()->addAction("toggle-session-monitor-activity");
+    action->setText(i18nc("@action", "Monitor for Activity"));
+    action->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_A));
     action->setCheckable(true);
     connect(action, SIGNAL(triggered(bool)), this, SLOT(handleContextDependentToggleAction(bool)));
     m_contextDependentActions << action;
+
+    action = actionCollection()->addAction("toggle-session-monitor-silence");
+    action->setText(i18nc("@action", "Monitor for Silence"));
+    action->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_I));
+    action->setCheckable(true);
+    connect(action, SIGNAL(triggered(bool)), this, SLOT(handleContextDependentToggleAction(bool)));
+    m_contextDependentActions << action;
+#endif
 
     for (uint i = 1; i <= 10; ++i)
     {
@@ -420,9 +442,6 @@ void MainWindow::handleContextDependentToggleAction(bool checked, QAction* actio
 
     if (!action) action = qobject_cast<QAction*>(QObject::sender());
 
-    if (action == actionCollection()->action("toggle-session-keyboard-input"))
-        m_sessionStack->setSessionKeyboardInputEnabled(sessionId, !checked);
-
     if (action == actionCollection()->action("toggle-session-prevent-closing")) {
         m_sessionStack->setSessionClosable(sessionId, !checked);
 
@@ -430,6 +449,15 @@ void MainWindow::handleContextDependentToggleAction(bool checked, QAction* actio
         // so the lock icon is added to or removed from the tab label.
         m_tabBar->repaint();
     }
+
+    if (action == actionCollection()->action("toggle-session-keyboard-input"))
+        m_sessionStack->setSessionKeyboardInputEnabled(sessionId, !checked);
+
+    if (action == actionCollection()->action("toggle-session-monitor-activity"))
+        m_sessionStack->setSessionMonitorActivityEnabled(sessionId, checked);
+
+    if (action == actionCollection()->action("toggle-session-monitor-silence"))
+        m_sessionStack->setSessionMonitorSilenceEnabled(sessionId, checked);
 }
 
 void MainWindow::setContextDependentActionsQuiet(bool quiet)
@@ -452,6 +480,68 @@ void MainWindow::handleToggleTerminalKeyboardInput(bool checked)
     m_sessionStack->setTerminalKeyboardInputEnabled(terminalId, !checked);
 }
 
+void MainWindow::handleToggleTerminalMonitorActivity(bool checked)
+{
+    QAction* action = qobject_cast<QAction*>(QObject::sender());
+
+    if (!action || action->data().isNull()) return;
+
+    bool ok = false;
+    int terminalId = action->data().toInt(&ok);
+    if (!ok) return;
+
+    m_sessionStack->setTerminalMonitorActivityEnabled(terminalId, checked);
+}
+
+void MainWindow::handleToggleTerminalMonitorSilence(bool checked)
+{
+    QAction* action = qobject_cast<QAction*>(QObject::sender());
+
+    if (!action || action->data().isNull()) return;
+
+    bool ok = false;
+    int terminalId = action->data().toInt(&ok);
+    if (!ok) return;
+
+    m_sessionStack->setTerminalMonitorSilenceEnabled(terminalId, checked);
+}
+
+void MainWindow::handleTerminalActivity(Terminal* terminal)
+{
+    Session* session = qobject_cast<Session*>(sender());
+
+    if (session)
+    {
+        disconnect(terminal, SIGNAL(activityDetected(Terminal*)), session, SIGNAL(activityDetected(Terminal*)));
+
+        QString message(i18nc("@info", "Activity detected in monitored terminal in session \"%1\".",
+            m_tabBar->tabTitle(session->id())));
+
+        KNotification::event(QLatin1String("activity"), message, QPixmap(), terminal->partWidget(),
+            KNotification::CloseWhenWidgetActivated);
+    }
+}
+
+void MainWindow::handleTerminalSilence(Terminal* terminal)
+{
+    Session* session = qobject_cast<Session*>(sender());
+
+    if (session)
+    {
+        QString message(i18nc("@info", "Silence detected in monitored terminal in session \"%1\".",
+            m_tabBar->tabTitle(session->id())));
+
+        KNotification::event(QLatin1String("silence"), message, QPixmap(), terminal->partWidget(),
+            KNotification::CloseWhenWidgetActivated);
+    }
+}
+
+void MainWindow::handleLastTabClosed()
+{
+    if (isVisible())
+        toggleWindowState();
+}
+
 void MainWindow::handleSwitchToAction()
 {
     QAction* action = qobject_cast<QAction*>(QObject::sender());
@@ -463,10 +553,10 @@ void MainWindow::handleSwitchToAction()
 void MainWindow::setupMenu()
 {
     m_menu->addTitle(i18nc("@title:menu", "Help"));
-    m_menu->addAction(actionCollection()->action(KStandardAction::stdName(KStandardAction::WhatsThis)));
-    m_menu->addAction(actionCollection()->action(KStandardAction::stdName(KStandardAction::ReportBug)));
-    m_menu->addAction(actionCollection()->action(KStandardAction::stdName(KStandardAction::AboutApp)));
-    m_menu->addAction(actionCollection()->action(KStandardAction::stdName(KStandardAction::AboutKDE)));
+    m_menu->addAction(actionCollection()->action(KStandardAction::name(KStandardAction::WhatsThis)));
+    m_menu->addAction(actionCollection()->action(KStandardAction::name(KStandardAction::ReportBug)));
+    m_menu->addAction(actionCollection()->action(KStandardAction::name(KStandardAction::AboutApp)));
+    m_menu->addAction(actionCollection()->action(KStandardAction::name(KStandardAction::AboutKDE)));
 
     m_menu->addTitle(i18nc("@title:menu", "Quick Options"));
     m_menu->addAction(actionCollection()->action("view-full-screen"));
@@ -489,8 +579,9 @@ void MainWindow::setupMenu()
 
     m_menu->addTitle(i18nc("@title:menu", "Settings"));
     m_menu->addAction(actionCollection()->action("manage-profiles"));
-    m_menu->addAction(actionCollection()->action(KStandardAction::stdName(KStandardAction::KeyBindings)));
-    m_menu->addAction(actionCollection()->action(KStandardAction::stdName(KStandardAction::Preferences)));
+    m_menu->addAction(actionCollection()->action(KStandardAction::name(KStandardAction::KeyBindings)));
+    m_menu->addAction(actionCollection()->action(KStandardAction::name(KStandardAction::ConfigureNotifications)));
+    m_menu->addAction(actionCollection()->action(KStandardAction::name(KStandardAction::Preferences)));
 }
 
 void MainWindow::updateScreenMenu()
@@ -579,7 +670,11 @@ void MainWindow::updateWindowHeightMenu()
 void MainWindow::configureKeys()
 {
     KShortcutsDialog::configure(actionCollection());
-    activate();
+}
+
+void MainWindow::configureNotifications()
+{
+    KNotifyConfigWidget::configure(this);
 }
 
 void MainWindow::configureApp()
@@ -588,13 +683,13 @@ void MainWindow::configureApp()
 
     KConfigDialog* settingsDialog = new KConfigDialog(this, "settings", Settings::self());
     settingsDialog->setFaceType(KPageDialog::List);
-    connect(settingsDialog, SIGNAL(settingsChanged(const QString&)), this, SLOT(applySettings()));
+    connect(settingsDialog, SIGNAL(settingsChanged(QString)), this, SLOT(applySettings()));
     connect(settingsDialog, SIGNAL(hidden()), this, SLOT(activate()));
 
     WindowSettings* windowSettings = new WindowSettings(settingsDialog);
     settingsDialog->addPage(windowSettings, i18nc("@title Preferences page name", "Window"), "yakuake");
-    connect(windowSettings, SIGNAL(updateWindowGeometry(int, int, int)),
-        this, SLOT(setWindowGeometry(int, int, int)));
+    connect(windowSettings, SIGNAL(updateWindowGeometry(int,int,int)),
+        this, SLOT(setWindowGeometry(int,int,int)));
 
     QWidget* behaviorSettings = new QWidget(settingsDialog);
     Ui::BehaviorSettings behaviorSettingsUi;
@@ -609,6 +704,8 @@ void MainWindow::configureApp()
     connect(settingsDialog, SIGNAL(closeClicked()), appearanceSettings, SLOT(resetSelection()));
     connect(settingsDialog, SIGNAL(cancelClicked()), appearanceSettings, SLOT(resetSelection()));
 
+    settingsDialog->button(KDialog::Help)->hide();
+
     settingsDialog->show();
 }
 
@@ -616,15 +713,15 @@ void MainWindow::applySettings()
 {
     if (Settings::dynamicTabTitles())
     {
-        connect(m_sessionStack, SIGNAL(titleChanged(int, const QString&)),
-            m_tabBar, SLOT(setTabTitle(int, const QString&)));
+        connect(m_sessionStack, SIGNAL(titleChanged(int,QString)),
+            m_tabBar, SLOT(setTabTitle(int,QString)));
 
         m_sessionStack->emitTitles();
     }
     else
     {
-        disconnect(m_sessionStack, SIGNAL(titleChanged(int, const QString&)),
-            m_tabBar, SLOT(setTabTitle(int, const QString&)));
+        disconnect(m_sessionStack, SIGNAL(titleChanged(int,QString)),
+            m_tabBar, SLOT(setTabTitle(int,QString)));
     }
 
     m_animationTimer.setInterval(10);
@@ -866,6 +963,7 @@ void MainWindow::toggleWindowState()
             // will also cause the window manager to switch to the virtual
             // desktop the window resides on.
 
+            KWindowSystem::activateWindow(winId());
             KWindowSystem::forceActiveWindow(winId());
 
             return;
@@ -884,6 +982,7 @@ void MainWindow::toggleWindowState()
 
             KWindowSystem::setOnDesktop(winId(), KWindowSystem::currentDesktop());
 
+            KWindowSystem::activateWindow(winId());
             KWindowSystem::forceActiveWindow(winId());
 
             return;
@@ -1039,9 +1138,8 @@ void MainWindow::xshapeOpenWindow()
         newMask.translate(0, maskHeight);
         newMask += QRegion(0, 0, width(), maskHeight);
 
-        setMask(newMask);
-
         m_titleBar->move(0, maskHeight);
+        setMask(newMask);
 
         m_animationFrame++;
     }
@@ -1060,9 +1158,8 @@ void MainWindow::xshapeRetractWindow()
     }
     else
     {
+        m_titleBar->move(0,m_titleBar->y() - m_animationStepSize);
         setMask(QRegion(mask()).translated(0, -m_animationStepSize));
-
-        m_titleBar->move(0, m_titleBar->y() - m_animationStepSize);
 
         --m_animationFrame;
     }
@@ -1084,6 +1181,8 @@ void MainWindow::sharedAfterOpenWindow()
     if (!Settings::firstRun()) KWindowSystem::forceActiveWindow(winId());
 
     m_listenForActivationChanges = true;
+
+    emit windowOpened();
 }
 
 void MainWindow::sharedPreHideWindow()
@@ -1094,6 +1193,8 @@ void MainWindow::sharedPreHideWindow()
 void MainWindow::sharedAfterHideWindow()
 {
     if (Settings::pollMouse()) toggleMousePoll(true);
+
+    emit windowClosed();
 }
 
 void MainWindow::activate()
@@ -1186,10 +1287,28 @@ QRect MainWindow::getDesktopGeometry()
                 {
                     NETExtendedStrut strut = windowInfo.extendedStrut();
 
-                    QRect topStrut(strut.top_start, 0, strut.top_end, strut.top_width);
+                    // Get the area covered by each strut.
+                    QRect topStrut(strut.top_start, 0, strut.top_end - strut.top_start, strut.top_width);
+                    QRect bottomStrut(strut.bottom_start, screenGeometry.bottom() - strut.bottom_width,
+                                      strut.bottom_end - strut.bottom_start, strut.bottom_width);
+                    QRect leftStrut(0, strut.left_width, strut.left_start, strut.left_end - strut.left_start);
+                    QRect rightStrut(screenGeometry.right() - strut.right_width, strut.right_start,
+                                     strut.right_end - strut.right_start, strut.right_width);
 
-                    if (!topStrut.intersects(screenGeometry))
-                        offScreenWindows << windowId;
+                    // If the window has no strut, no need to bother further.
+                    if (topStrut.isEmpty() && bottomStrut.isEmpty() && leftStrut.isEmpty() && rightStrut.isEmpty())
+                        continue;
+
+                    // If any of the strut intersects with our screen geometry, it will be correctly handled
+                    // by workArea().
+                    if (topStrut.intersects(screenGeometry) || bottomStrut.intersects(screenGeometry) ||
+                        leftStrut.intersects(screenGeometry) || rightStrut.intersects(screenGeometry))
+                        continue;
+
+                    // This window has a strut on the same desktop as us but which does not cover our screen
+                    // geometry. It should be ignored, otherwise the returned work area will wrongly include
+                    // the strut.
+                    offScreenWindows << windowId;
                 }
             }
         }
@@ -1209,11 +1328,9 @@ void MainWindow::showStartupPopup()
 {
     KAction* action = static_cast<KAction*>(actionCollection()->action("toggle-window-state"));
     QString shortcut(action->globalShortcut().toString());
-    QString title(i18nc("@title:window", "<application>Yakuake</application> Notification"));
     QString message(i18nc("@info", "Application successfully started.<nl/>" "Press <shortcut>%1</shortcut> to use it ...", shortcut));
 
-    KNotification::event(KNotification::Notification, title, message,
-        KIconLoader::global()->loadIcon("yakuake", KIconLoader::Desktop));
+    KNotification::event(QLatin1String("startup"), message, QPixmap(), this);
 }
 
 void MainWindow::showFirstRunDialog()

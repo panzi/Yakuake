@@ -128,13 +128,6 @@
      </property>
      <layout class="QVBoxLayout">
       <item>
-       <widget class="QCheckBox" name="kcfg_ShowPopup">
-        <property name="text">
-         <string comment="@option:check">Show startup notification popup</string>
-        </property>
-       </widget>
-      </item>
-      <item>
        <widget class="QCheckBox" name="kcfg_ConfirmQuit">
         <property name="text">
          <string comment="@option:check">Confirm quit when more than one session is open</string>
@@ -159,16 +152,6 @@
    </item>
   </layout>
  </widget>
- <tabstops>
-  <tabstop>kcfg_KeepOpen</tabstop>
-  <tabstop>kcfg_KeepAbove</tabstop>
-  <tabstop>kcfg_ToggleToFocus</tabstop>
-  <tabstop>kcfg_PollMouse</tabstop>
-  <tabstop>kcfg_OpenAfterStart</tabstop>
-  <tabstop>kcfg_FocusFollowsMouse</tabstop>
-  <tabstop>kcfg_ShowPopup</tabstop>
-  <tabstop>kcfg_ConfirmQuit</tabstop>
- </tabstops>
  <resources/>
  <connections>
   <connection>

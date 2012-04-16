@@ -45,8 +45,8 @@ FirstRunDialog::FirstRunDialog(MainWindow* mainWindow) : KDialog(mainWindow)
 
     initKeyButton();
 
-    connect(m_ui->keyButton, SIGNAL(keySequenceChanged(const QKeySequence&)),
-        this, SLOT(validateKeySequence(const QKeySequence&)));
+    connect(m_ui->keyButton, SIGNAL(keySequenceChanged(QKeySequence)),
+        this, SLOT(validateKeySequence(QKeySequence)));
 }
 
 FirstRunDialog::~FirstRunDialog()
@@ -70,11 +70,10 @@ void FirstRunDialog::initKeyButton()
 
 void FirstRunDialog::validateKeySequence(const QKeySequence& keySequence)
 {
-    QStringList actionIdentifiers = KGlobalAccel::findActionNameSystemwide(keySequence);
-
-    if (!actionIdentifiers.isEmpty())
+    if (!KGlobalAccel::isGlobalShortcutAvailable(keySequence))
     {
-        bool steal = KGlobalAccel::promptStealShortcutSystemwide(this, actionIdentifiers, keySequence);
+        bool steal = KGlobalAccel::promptStealShortcutSystemwide(this,
+            KGlobalAccel::getGlobalShortcutsByKey(keySequence), keySequence);
 
         if (!steal)
             initKeyButton();

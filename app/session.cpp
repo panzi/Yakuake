@@ -7,7 +7,7 @@
   published by the Free Software Foundation; either version 2 of
   the License or (at your option) version 3 or any later version
   accepted by the membership of KDE e.V. (or its successor appro-
-  ved by the membership of KDE e.V.), which shall act as a proxy 
+  ved by the membership of KDE e.V.), which shall act as a proxy
   defined in Section 14 of version 3 of the license.
 
   This program is distributed in the hope that it will be useful,
@@ -24,6 +24,7 @@
 #include "terminal.h"
 
 #include <KUser>
+#include <KDebug>
 
 int Session::m_availableSessionId = 0;
 
@@ -73,7 +74,12 @@ void Session::setupSession(const QString& workingDir, SessionType type)
             m_baseSplitter->setSizes(newSplitterSizes);
 
             QWidget* terminalWidget = terminal->terminalWidget();
-            if (terminalWidget) terminalWidget->setFocus();
+
+            if (terminalWidget)
+            {
+                terminalWidget->setFocus();
+                setActiveTerminal(terminal->id());
+            }
 
             break;
         }
@@ -92,7 +98,12 @@ void Session::setupSession(const QString& workingDir, SessionType type)
             m_baseSplitter->setSizes(newSplitterSizes);
 
             QWidget* terminalWidget = terminal->terminalWidget();
-            if (terminalWidget) terminalWidget->setFocus();
+
+            if (terminalWidget)
+            {
+                terminalWidget->setFocus();
+                setActiveTerminal(terminal->id());
+            }
 
             break;
         }
@@ -126,7 +137,12 @@ void Session::setupSession(const QString& workingDir, SessionType type)
             lowerSplitter->setSizes(newSplitterSizes);
 
             QWidget* terminalWidget = terminal->terminalWidget();
-            if (terminalWidget) terminalWidget->setFocus();
+
+            if (terminalWidget)
+            {
+                terminalWidget->setFocus();
+                setActiveTerminal(terminal->id());
+            }
 
             break;
         }
@@ -145,8 +161,9 @@ Terminal* Session::addTerminal(const QString& workingDir, QWidget* parent)
     Terminal* terminal = new Terminal(workingDir, parent);
     connect(terminal, SIGNAL(activated(int)), this, SLOT(setActiveTerminal(int)));
     connect(terminal, SIGNAL(manuallyActivated(Terminal*)), this, SIGNAL(terminalManuallyActivated(Terminal*)));
-    connect(terminal, SIGNAL(titleChanged(int, const QString&)), this, SLOT(setTitle(int, const QString&)));
+    connect(terminal, SIGNAL(titleChanged(int,QString)), this, SLOT(setTitle(int,QString)));
     connect(terminal, SIGNAL(keyboardInputBlocked(Terminal*)), this, SIGNAL(keyboardInputBlocked(Terminal*)));
+    connect(terminal, SIGNAL(silenceDetected(Terminal*)), this, SIGNAL(silenceDetected(Terminal*)));
     connect(terminal, SIGNAL(destroyed(int)), this, SLOT(cleanup(int)));
 
     m_terminals.insert(terminal->id(), terminal);
@@ -169,13 +186,13 @@ void Session::closeTerminal(int terminalId)
 void Session::focusPreviousTerminal()
 {
     if (m_activeTerminalId == -1) return;
-    if (!m_terminals.contains(m_activeTerminalId)) return; 
+    if (!m_terminals.contains(m_activeTerminalId)) return;
 
     QMapIterator<int, Terminal*> it(m_terminals);
 
     it.toBack();
 
-    while (it.hasPrevious()) 
+    while (it.hasPrevious())
     {
         it.previous();
 
@@ -206,7 +223,7 @@ void Session::focusNextTerminal()
 
     QMapIterator<int, Terminal*> it(m_terminals);
 
-    while (it.hasNext()) 
+    while (it.hasNext())
     {
         it.next();
 
@@ -288,7 +305,7 @@ int Session::split(Terminal* terminal, Qt::Orientation orientation)
         Splitter* newSplitter = new Splitter(orientation, splitter);
         connect(newSplitter, SIGNAL(destroyed()), this, SLOT(cleanup()));
 
-        if (splitter->indexOf(terminal->partWidget()) == 0) 
+        if (splitter->indexOf(terminal->partWidget()) == 0)
             splitter->insertWidget(0, newSplitter);
 
         QWidget* partWidget = terminal->partWidget();
@@ -310,7 +327,7 @@ int Session::split(Terminal* terminal, Qt::Orientation orientation)
 
         m_activeTerminalId = terminal->id();
     }
-    
+
     return m_activeTerminalId;
 }
 
@@ -452,19 +469,15 @@ void Session::editProfile()
 
 bool Session::keyboardInputEnabled()
 {
-    int keyboardInputDisabledCount = 0;
+    int keyboardInputEnabledCount = 0;
 
     QMapIterator<int, Terminal*> i(m_terminals);
 
     while (i.hasNext())
-    {
-        i.next();
+        if (i.next().value()->keyboardInputEnabled())
+            ++keyboardInputEnabledCount;
 
-        if (!i.value()->keyboardInputEnabled())
-            ++keyboardInputDisabledCount;
-    }
-
-    return m_terminals.count() != keyboardInputDisabledCount;
+    return m_terminals.count() == keyboardInputEnabledCount;
 }
 
 void Session::setKeyboardInputEnabled(bool enabled)
@@ -472,11 +485,7 @@ void Session::setKeyboardInputEnabled(bool enabled)
     QMapIterator<int, Terminal*> i(m_terminals);
 
     while (i.hasNext())
-    {
-        i.next();
-
-        i.value()->setKeyboardInputEnabled(enabled);
-    }
+        setKeyboardInputEnabled(i.next().key(), enabled);
 }
 
 bool Session::keyboardInputEnabled(int terminalId)
@@ -493,17 +502,158 @@ void Session::setKeyboardInputEnabled(int terminalId, bool enabled)
     m_terminals.value(terminalId)->setKeyboardInputEnabled(enabled);
 }
 
+bool Session::hasTerminalsWithKeyboardInputEnabled()
+{
+    QMapIterator<int, Terminal*> i(m_terminals);
+
+    while (i.hasNext())
+        if (i.next().value()->keyboardInputEnabled())
+            return true;
+
+    return false;
+}
+
 bool Session::hasTerminalsWithKeyboardInputDisabled()
 {
+    QMapIterator<int, Terminal*> i(m_terminals);
+
+    while (i.hasNext())
+        if (!i.next().value()->keyboardInputEnabled())
+            return true;
+
+    return false;
+}
+
+bool Session::monitorActivityEnabled()
+{
+    int monitorActivityEnabledCount = 0;
+
+    QMapIterator<int, Terminal*> i(m_terminals);
+
+    while (i.hasNext())
+        if (i.next().value()->monitorActivityEnabled())
+            ++monitorActivityEnabledCount;
+
+    return m_terminals.count() == monitorActivityEnabledCount;
+}
+
+void Session::setMonitorActivityEnabled(bool enabled)
+{
+    QMapIterator<int, Terminal*> i(m_terminals);
+
+    while (i.hasNext())
+        setMonitorActivityEnabled(i.next().key(), enabled);
+}
+
+bool Session::monitorActivityEnabled(int terminalId)
+{
+    if (!m_terminals.contains(terminalId)) return false;
+
+    return m_terminals.value(terminalId)->monitorActivityEnabled();
+}
+
+void Session::setMonitorActivityEnabled(int terminalId, bool enabled)
+{
+    if (!m_terminals.contains(terminalId)) return;
+
+    Terminal* terminal = m_terminals.value(terminalId);
+
+    connect(terminal, SIGNAL(activityDetected(Terminal*)), this, SIGNAL(activityDetected(Terminal*)),
+        Qt::UniqueConnection);
+
+    terminal->setMonitorActivityEnabled(enabled);
+}
+
+bool Session::hasTerminalsWithMonitorActivityEnabled()
+{
+    QMapIterator<int, Terminal*> i(m_terminals);
+
+    while (i.hasNext())
+        if (i.next().value()->monitorActivityEnabled())
+            return true;
+
+    return false;
+}
+
+bool Session::hasTerminalsWithMonitorActivityDisabled()
+{
+    QMapIterator<int, Terminal*> i(m_terminals);
+
+    while (i.hasNext())
+        if (!i.next().value()->monitorActivityEnabled())
+            return true;
+
+    return false;
+}
+
+void Session::reconnectMonitorActivitySignals()
+{
+#if KDE_IS_VERSION(4, 7, 1)
     QMapIterator<int, Terminal*> i(m_terminals);
 
     while (i.hasNext())
     {
         i.next();
 
-        if (!i.value()->keyboardInputEnabled())
-            return true;
+        connect(i.value(), SIGNAL(activityDetected(Terminal*)), this, SIGNAL(activityDetected(Terminal*)),
+            Qt::UniqueConnection);
     }
+#endif
+}
+
+bool Session::monitorSilenceEnabled()
+{
+    int monitorSilenceEnabledCount = 0;
+
+    QMapIterator<int, Terminal*> i(m_terminals);
+
+    while (i.hasNext())
+        if (i.next().value()->monitorSilenceEnabled())
+            ++monitorSilenceEnabledCount;
+
+    return m_terminals.count() == monitorSilenceEnabledCount;
+}
+
+void Session::setMonitorSilenceEnabled(bool enabled)
+{
+    QMapIterator<int, Terminal*> i(m_terminals);
+
+    while (i.hasNext())
+        setMonitorSilenceEnabled(i.next().key(), enabled);
+}
+
+bool Session::monitorSilenceEnabled(int terminalId)
+{
+    if (!m_terminals.contains(terminalId)) return false;
+
+    return m_terminals.value(terminalId)->monitorSilenceEnabled();
+}
+
+void Session::setMonitorSilenceEnabled(int terminalId, bool enabled)
+{
+    if (!m_terminals.contains(terminalId)) return;
+
+    m_terminals.value(terminalId)->setMonitorSilenceEnabled(enabled);
+}
+
+bool Session::hasTerminalsWithMonitorSilenceDisabled()
+{
+    QMapIterator<int, Terminal*> i(m_terminals);
+
+    while (i.hasNext())
+        if (!i.next().value()->monitorSilenceEnabled())
+            return true;
+
+    return false;
+}
+
+bool Session::hasTerminalsWithMonitorSilenceEnabled()
+{
+    QMapIterator<int, Terminal*> i(m_terminals);
+
+    while (i.hasNext())
+        if (i.next().value()->monitorSilenceEnabled())
+            return true;
 
     return false;
 }
