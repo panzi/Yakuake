@@ -27,9 +27,10 @@
 #include <KColorScheme>
 #include <kde_terminal_interface_v2.h>
 #include <KLocalizedString>
-#include <KMessageBox>
+#include <KIcon>
 #include <KPluginFactory>
 #include <KPluginLoader>
+#include <KService>
 #include <KUser>
 
 #include <QAction>
@@ -59,9 +60,13 @@ Terminal::Terminal(const QString& workingDir, QWidget* parent) : QObject(parent)
     m_terminalWidget = NULL;
     m_parentSplitter = parent;
 
-    KPluginFactory* factory = KPluginLoader("konsolepart").factory();
-    if (!factory)
-        factory = KPluginLoader("libkonsolepart").factory(); // deprecated name
+    KPluginFactory* factory = 0;
+    KService::Ptr service = KService::serviceByDesktopName("konsolepart");
+    if( service )
+    {
+        factory = KPluginLoader(service->library()).factory();
+    }
+
     m_part = factory ? (factory->create<KParts::Part>(parent)) : 0;
 
     if (m_part)

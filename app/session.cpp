@@ -25,6 +25,7 @@
 
 #include <KUser>
 #include <KDebug>
+#include <kdeversion.h>
 
 int Session::m_availableSessionId = 0;
 

@@ -22,6 +22,7 @@
 
 #include "mainwindow.h"
 #include "application.h"
+#include "settings.h"
 #include "config/appearancesettings.h"
 #include "config/windowsettings.h"
 #include "firstrundialog.h"
@@ -32,7 +33,6 @@
 #include "titlebar.h"
 #include "ui_behaviorsettings.h"
 
-#include <KAboutApplicationDialog>
 #include <KApplication>
 #include <KConfigDialog>
 #include <KHelpMenu>
@@ -42,14 +42,17 @@
 #include <KNotifyConfigWidget>
 #include <KPushButton>
 #include <KShortcutsDialog>
+#include <KAction>
 #include <KStandardAction>
 #include <KToggleFullScreenAction>
-#include <KVBox>
-#include <KGlobalSettings>
+#include <KActionCollection>
+#include <KWindowSystem>
+#include <KLocalizedString>
+#include <kdeversion.h>
 
 #include <QDesktopWidget>
 #include <QPainter>
-#include <QPalette>
+#include <QWhatsThis>
 #include <QtDBus/QtDBus>
 
 #if defined(Q_WS_X11)
