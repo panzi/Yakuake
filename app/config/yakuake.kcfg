@@ -8,7 +8,7 @@
     <entry name="Screen" type="Int">
       <label context="@label">Screen to use</label>
       <whatsthis context="@info:whatsthis">The screen on which the application window will appear. 0 is understood to be the screen the mouse pointer is on.</whatsthis>
-      <default>1</default>
+      <default>0</default>
     </entry>
     <entry name="Width" type="Int">
       <label context="@label">Window width</label>
@@ -40,6 +40,11 @@
       <label context="@label">Keep window open</label>
       <whatsthis context="@info:whatsthis">Whether to keep the application window open when it loses focus.</whatsthis>
       <default>true</default>
+    </entry>
+    <entry name="KeepOpenAfterLastSessionCloses" type="Bool">
+      <label context="@label">Keep window open after last session closes</label>
+      <whatsthis context="@info:whatsthis">Whether to keep the application window open after the last session is closed.</whatsthis>
+      <default>false</default>
     </entry>
     <entry name="ToggleToFocus" type="Bool">
       <label context="@label">Use open/retract shortcut to focus window</label>
@@ -79,6 +84,11 @@
       <label context="@label">Skin</label>
       <whatsthis context="@info:whatsthis">The skin to be used by the application window.</whatsthis>
       <default>default</default>
+    </entry>
+    <entry name="SkinInstalledWithKns" type="Bool">
+      <label context="@label">Skin installed by KNS</label>
+      <whatsthis context="@info:whatsthis">Whether the currently active skin was installed via KNS.</whatsthis>
+      <default>false</default>
     </entry>
     <entry name="Translucency" type="Bool">
       <label context="@label">Use translucent background</label>

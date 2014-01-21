@@ -48,7 +48,6 @@
 #include <KActionCollection>
 #include <KWindowSystem>
 #include <KLocalizedString>
-#include <kdeversion.h>
 
 #include <QDesktopWidget>
 #include <QPainter>
@@ -193,7 +192,11 @@ void MainWindow::setupActions()
     action = actionCollection()->addAction("toggle-window-state");
     action->setText(i18nc("@action", "Open/Retract Yakuake"));
     action->setIcon(KIcon("yakuake"));
+#ifndef Q_OS_WIN
     action->setGlobalShortcut(KShortcut(Qt::Key_F12));
+#else
+    action->setGlobalShortcut(KShortcut(Qt::Key_F11));
+#endif
     connect(action, SIGNAL(triggered()), this, SLOT(toggleWindowState()));
 
     action = actionCollection()->addAction("keep-open");
@@ -366,7 +369,6 @@ void MainWindow::setupActions()
     connect(action, SIGNAL(triggered(bool)), this, SLOT(handleContextDependentToggleAction(bool)));
     m_contextDependentActions << action;
 
-#if KDE_IS_VERSION(4, 7, 1)
     action = actionCollection()->addAction("toggle-session-monitor-activity");
     action->setText(i18nc("@action", "Monitor for Activity"));
     action->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_A));
@@ -380,7 +382,6 @@ void MainWindow::setupActions()
     action->setCheckable(true);
     connect(action, SIGNAL(triggered(bool)), this, SLOT(handleContextDependentToggleAction(bool)));
     m_contextDependentActions << action;
-#endif
 
     for (uint i = 1; i <= 10; ++i)
     {
@@ -541,7 +542,7 @@ void MainWindow::handleTerminalSilence(Terminal* terminal)
 
 void MainWindow::handleLastTabClosed()
 {
-    if (isVisible())
+    if (isVisible() && !Settings::keepOpenAfterLastSessionCloses())
         toggleWindowState();
 }
 
@@ -745,7 +746,7 @@ void MainWindow::applySettings()
 
 void MainWindow::applySkin()
 {
-    bool gotSkin = m_skin->load(Settings::skin());
+    bool gotSkin = m_skin->load(Settings::skin(), Settings::skinInstalledWithKns());
 
     if (!gotSkin)
     {
@@ -946,6 +947,20 @@ void MainWindow::changeEvent(QEvent* event)
             toggleWindowState();
     }
 
+    if (event->type() == QEvent::WindowStateChange
+        && (windowState() & Qt::WindowMaximized)
+        && Settings::width() != 100
+        && Settings::height() != 100)
+    {
+        Settings::setWidth(100);
+        Settings::setHeight(100);
+
+        applyWindowGeometry();
+
+        updateWindowWidthMenu();
+        updateWindowHeightMenu();
+    }
+
     KMainWindow::changeEvent(event);
 }
 
@@ -1006,15 +1021,6 @@ void MainWindow::toggleWindowState()
 #if defined(Q_WS_X11)
 void MainWindow::kwinAssistToggleWindowState(bool visible)
 {
-    // Always fall back to legacy animation strategy if we're not on
-    // 4.6+. This block can be removed once we depend on KDE 4.6.
-    if (!Application::isKDE46OrHigher())
-    {
-        xshapeToggleWindowState(visible);
-
-        return;
-    }
-
     bool gotEffect = false;
 
     Display* display = QX11Info::display();
@@ -1077,12 +1083,6 @@ void MainWindow::kwinAssistToggleWindowState(bool visible)
 
 void MainWindow::kwinAssistPropCleanup()
 {
-    // We're not going to have set up the prop in the first place
-    // if we're not running in 4.6, so no need to clean it up.
-    // This block can be removed once we depend on KDE 4.6.
-    if (!Application::isKDE46OrHigher())
-        return;
-
     Display* display = QX11Info::display();
     Atom atom = XInternAtom(display, "_KDE_SLIDE", false);
 
@@ -1284,9 +1284,9 @@ QRect MainWindow::getDesktopGeometry()
 
             if (KWindowSystem::hasWId(windowId))
             {
-                KWindowInfo windowInfo = KWindowSystem::windowInfo(windowId, 0, NET::WM2ExtendedStrut);
+                KWindowInfo windowInfo = KWindowSystem::windowInfo(windowId, NET::WMDesktop, NET::WM2ExtendedStrut);
 
-                if (windowInfo.valid() && windowInfo.desktop() == currentDesktop)
+                if (windowInfo.valid() && (windowInfo.desktop() == currentDesktop || windowInfo.desktop() == -1))
                 {
                     NETExtendedStrut strut = windowInfo.extendedStrut();
 

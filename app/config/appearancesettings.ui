@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>307</width>
-    <height>355</height>
+    <width>381</width>
+    <height>386</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -154,6 +154,13 @@
       <string comment="@title:group">Skin</string>
      </property>
      <layout class="QGridLayout">
+      <item row="2" column="0" colspan="2">
+       <widget class="KPushButton" name="ghnsButton">
+        <property name="text">
+         <string comment="@action:button">Get New Skins...</string>
+        </property>
+       </widget>
+      </item>
       <item row="0" column="0" colspan="2">
        <widget class="QListView" name="skinList">
         <property name="contextMenuPolicy">
@@ -164,18 +171,15 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="0">
-       <widget class="QPushButton" name="installButton">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
-        <property name="text">
-         <string comment="@action:button">Install Skin...</string>
+      <item row="3" column="0" colspan="2">
+       <widget class="KLineEdit" name="kcfg_Skin">
+        <property name="frame">
+         <bool>false</bool>
         </property>
        </widget>
       </item>
       <item row="1" column="1">
-       <widget class="QPushButton" name="removeButton">
+       <widget class="KPushButton" name="removeButton">
         <property name="enabled">
          <bool>false</bool>
         </property>
@@ -184,10 +188,20 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="0" colspan="2">
-       <widget class="KLineEdit" name="kcfg_Skin">
-        <property name="frame">
-         <bool>false</bool>
+      <item row="1" column="0">
+       <widget class="KPushButton" name="installButton">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="text">
+         <string comment="@action:button">Install Skin...</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QCheckBox" name="kcfg_SkinInstalledWithKns">
+        <property name="text">
+         <string/>
         </property>
        </widget>
       </item>
@@ -207,6 +221,11 @@
    <extends>QLineEdit</extends>
    <header>klineedit.h</header>
   </customwidget>
+  <customwidget>
+   <class>KPushButton</class>
+   <extends>QPushButton</extends>
+   <header>kpushbutton.h</header>
+  </customwidget>
  </customwidgets>
  <tabstops>
   <tabstop>kcfg_TerminalHighlightOnManualActivation</tabstop>
@@ -216,7 +235,9 @@
   <tabstop>skinList</tabstop>
   <tabstop>installButton</tabstop>
   <tabstop>removeButton</tabstop>
+  <tabstop>ghnsButton</tabstop>
   <tabstop>kcfg_Skin</tabstop>
+  <tabstop>kcfg_SkinInstalledWithKns</tabstop>
  </tabstops>
  <resources/>
  <connections>
