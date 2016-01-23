@@ -23,6 +23,7 @@
 #include "sessionstack.h"
 #include "settings.h"
 #include "visualeventoverlay.h"
+#include "terminal.h"
 
 #include <KMessageBox>
 #include <KLocalizedString>
@@ -44,9 +45,9 @@ SessionStack::~SessionStack()
 {
 }
 
-int SessionStack::addSession(Session::SessionType type)
+int SessionStack::addSession(Session::SessionType type, const QString& directory)
 {
-    Session* session = new Session(type, this);
+    Session* session = new Session(type, this, directory);
     connect(session, SIGNAL(titleChanged(int,QString)), this, SIGNAL(titleChanged(int,QString)));
     connect(session, SIGNAL(terminalManuallyActivated(Terminal*)), this, SLOT(handleManualTerminalActivation(Terminal*)));
     connect(session, SIGNAL(keyboardInputBlocked(Terminal*)), m_visualEventOverlay, SLOT(indicateKeyboardInputBlocked(Terminal*)));
@@ -65,6 +66,18 @@ int SessionStack::addSession(Session::SessionType type)
         emit sessionAdded(session->id());
 
     return session->id();
+}
+
+int SessionStack::cloneSession()
+{
+    Session* currentSession = m_sessions.value(m_activeSessionId);
+    Terminal* currentTerminal = currentSession ? currentSession->getTerminal(currentSession->activeTerminalId()) : NULL;
+    QString directory;
+
+    if (currentTerminal)
+        directory = currentTerminal->currentWorkingDirectory();
+
+    return addSession(Session::Single, directory);
 }
 
 int SessionStack::addSessionTwoHorizontal()

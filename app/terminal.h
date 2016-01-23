@@ -27,7 +27,7 @@
 
 class QKeyEvent;
 
-class TerminalInterface;
+class TerminalInterfaceV2;
 
 
 class Terminal : public QObject
@@ -35,13 +35,14 @@ class Terminal : public QObject
     Q_OBJECT
 
     public:
-        explicit Terminal(QWidget* parent = 0);
+        explicit Terminal(QWidget* parent = 0, const QString& directory = QString());
          ~Terminal();
 
         bool eventFilter(QObject* watched, QEvent* event);
 
         int id() { return m_terminalId; }
         const QString title() { return m_title; }
+        QString currentWorkingDirectory() const;
 
         QWidget* partWidget() { return m_partWidget; }
         QWidget* terminalWidget() { return m_terminalWidget; }
@@ -92,7 +93,7 @@ class Terminal : public QObject
         int m_terminalId;
 
         KParts::Part* m_part;
-        TerminalInterface* m_terminalInterface;
+        TerminalInterfaceV2* m_terminalInterface;
         QWidget* m_partWidget;
         QPointer<QWidget> m_terminalWidget;
         QWidget* m_parentSplitter;

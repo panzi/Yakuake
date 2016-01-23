@@ -25,7 +25,7 @@
 #include <KActionCollection>
 #include <KApplication>
 #include <KColorScheme>
-#include <kde_terminal_interface.h>
+#include <kde_terminal_interface_v2.h>
 #include <KLocalizedString>
 #include <KIcon>
 #include <KPluginFactory>
@@ -37,13 +37,14 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QWidget>
+#include <QFileInfo>
 
 #include <QKeyEvent>
 
 
 int Terminal::m_availableTerminalId = 0;
 
-Terminal::Terminal(QWidget* parent) : QObject(parent)
+Terminal::Terminal(QWidget* parent, const QString& directory) : QObject(parent)
 {
     m_terminalId = m_availableTerminalId;
     m_availableTerminalId++;
@@ -86,8 +87,8 @@ Terminal::Terminal(QWidget* parent) : QObject(parent)
 
         disableOffendingPartActions();
 
-        m_terminalInterface = qobject_cast<TerminalInterface*>(m_part);
-        if (m_terminalInterface) m_terminalInterface->showShellInDir(KUser().homeDir());
+        m_terminalInterface = qobject_cast<TerminalInterfaceV2*>(m_part);
+        if (m_terminalInterface) m_terminalInterface->showShellInDir(directory.isEmpty() ? KUser().homeDir() : directory);
     }
     else
         displayKPartLoadError();
@@ -228,6 +229,22 @@ void Terminal::setTitle(const QString& title)
     m_title = title;
 
     emit titleChanged(m_terminalId, m_title);
+}
+
+QString Terminal::currentWorkingDirectory() const
+{
+#ifdef __linux__
+    if (m_terminalInterface)
+    {
+        QFileInfo info( QString("/proc/%1/cwd").arg(m_terminalInterface->terminalProcessId()) );
+
+        if (info.isReadable() && info.isSymLink())
+        {
+            return info.symLinkTarget();
+        }
+    }
+#endif
+    return QString();
 }
 
 void Terminal::runCommand(const QString& command)

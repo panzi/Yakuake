@@ -241,6 +241,14 @@ void MainWindow::setupActions()
     action->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_T));
     connect(action, SIGNAL(triggered()), m_sessionStack, SLOT(addSession()));
 
+#ifdef __linux__
+    action = actionCollection()->addAction("clone-session");
+    action->setText(i18nc("@action", "Clone Session"));
+    action->setIcon(KIcon("tab-duplicate"));
+    action->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_C));
+    connect(action, SIGNAL(triggered()), m_sessionStack, SLOT(cloneSession()));
+#endif
+
     action = actionCollection()->addAction("new-session-two-horizontal");
     action->setText(i18nc("@action", "Two Terminals, Horizontally"));
     action->setIcon(KIcon("tab-new"));
