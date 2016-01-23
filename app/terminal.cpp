@@ -41,7 +41,7 @@
 
 int Terminal::m_availableTerminalId = 0;
 
-Terminal::Terminal(QWidget* parent) : QObject(parent)
+Terminal::Terminal(const QString& directory, QWidget* parent) : QObject(parent)
 {
     m_terminalId = m_availableTerminalId;
     m_availableTerminalId++;
@@ -85,6 +85,7 @@ Terminal::Terminal(QWidget* parent) : QObject(parent)
         disableOffendingPartActions();
 
         m_terminalInterface = qobject_cast<TerminalInterface*>(m_part);
+        if (m_terminalInterface) m_terminalInterface->showShellInDir(directory.isEmpty() ? QDir::homePath() : directory);
     }
     else
         displayKPartLoadError();
@@ -224,6 +225,11 @@ void Terminal::setTitle(const QString& title)
     m_title = title;
 
     emit titleChanged(m_terminalId, m_title);
+}
+
+QString Terminal::currentWorkingDirectory() const
+{
+    return m_terminalInterface->currentWorkingDirectory();
 }
 
 void Terminal::runCommand(const QString& command)

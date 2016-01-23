@@ -305,6 +305,12 @@ void MainWindow::setupActions()
     actionCollection()->setDefaultShortcut(action, QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_T));
     connect(action, SIGNAL(triggered()), m_sessionStack, SLOT(addSession()));
 
+    action = actionCollection()->addAction(QStringLiteral("clone-session"));
+    action->setText(xi18nc("@action", "New Session (Same Working Directory)"));
+    action->setIcon(QIcon(QStringLiteral("tab-duplicate")));
+    action->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_C));
+    connect(action, SIGNAL(triggered()), m_sessionStack, SLOT(addSessionSameWorkingDir()));
+
     action = actionCollection()->addAction(QStringLiteral("new-session-two-horizontal"));
     action->setText(xi18nc("@action", "Two Terminals, Horizontally"));
     action->setIcon(QIcon::fromTheme(QStringLiteral("tab-new")));

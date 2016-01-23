@@ -54,8 +54,9 @@ class SessionStack : public QStackedWidget
 
 
     public Q_SLOTS:
-        int addSessionImpl(Session::SessionType type = Session::Single);
+        int addSessionImpl(Session::SessionType type = Session::Single, const QString& directory = QString());
         Q_SCRIPTABLE int addSession();
+        Q_SCRIPTABLE int addSessionSameWorkingDir();
         Q_SCRIPTABLE int addSessionTwoHorizontal();
         Q_SCRIPTABLE int addSessionTwoVertical();
         Q_SCRIPTABLE int addSessionQuad();

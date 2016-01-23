@@ -24,6 +24,7 @@
 #include "settings.h"
 #include "terminal.h"
 #include "visualeventoverlay.h"
+#include "terminal.h"
 
 #include <config-yakuake.h>
 
@@ -49,9 +50,9 @@ SessionStack::~SessionStack()
 {
 }
 
-int SessionStack::addSessionImpl(Session::SessionType type)
+int SessionStack::addSessionImpl(Session::SessionType type, const QString& directory)
 {
-    Session* session = new Session(type, this);
+    Session* session = new Session(type, directory, this);
     connect(session, SIGNAL(titleChanged(int,QString)), this, SIGNAL(titleChanged(int,QString)));
     connect(session, SIGNAL(terminalManuallyActivated(Terminal*)), this, SLOT(handleManualTerminalActivation(Terminal*)));
     connect(session, SIGNAL(keyboardInputBlocked(Terminal*)), m_visualEventOverlay, SLOT(indicateKeyboardInputBlocked(Terminal*)));
@@ -75,6 +76,18 @@ int SessionStack::addSessionImpl(Session::SessionType type)
 int SessionStack::addSession()
 {
     return addSessionImpl(Session::Single);
+}
+
+int SessionStack::addSessionSameWorkingDir()
+{
+    Session* currentSession = m_sessions.value(m_activeSessionId);
+    Terminal* currentTerminal = currentSession ? currentSession->getTerminal(currentSession->activeTerminalId()) : NULL;
+    QString directory;
+
+    if (currentTerminal)
+        directory = currentTerminal->currentWorkingDirectory();
+
+    return addSessionImpl(Session::Single, directory);
 }
 
 int SessionStack::addSessionTwoHorizontal()

@@ -37,13 +37,14 @@ class Terminal : public QObject
     Q_OBJECT
 
     public:
-        explicit Terminal(QWidget* parent = 0);
+        explicit Terminal(const QString& directory, QWidget* parent = 0);
          ~Terminal();
 
         bool eventFilter(QObject* watched, QEvent* event) override;
 
         int id() { return m_terminalId; }
         const QString title() { return m_title; }
+        QString currentWorkingDirectory() const;
 
         QWidget* partWidget() { return m_partWidget; }
         QWidget* terminalWidget() { return m_terminalWidget; }
