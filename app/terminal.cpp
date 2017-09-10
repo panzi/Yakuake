@@ -85,7 +85,7 @@ Terminal::Terminal(const QString& directory, QWidget* parent) : QObject(parent)
         disableOffendingPartActions();
 
         m_terminalInterface = qobject_cast<TerminalInterface*>(m_part);
-        if (m_terminalInterface) m_terminalInterface->showShellInDir(directory.isEmpty() ? QDir::homePath() : directory);
+        if (m_terminalInterface && !directory.isEmpty()) m_terminalInterface->showShellInDir(directory);
     }
     else
         displayKPartLoadError();
@@ -229,7 +229,27 @@ void Terminal::setTitle(const QString& title)
 
 QString Terminal::currentWorkingDirectory() const
 {
+#ifdef __linux__
+    // TerminalInterface::currentWorkingDirectory() seems to behave very erratic
+    // But at least under Linux we can use a different logic:
+    int pid = m_terminalInterface->terminalProcessId();
+
+    if (pid < 0) {
+        // A lot of programs go to $HOME internaly, starting daemons even to /
+        // So rather try to use the terminal process id and only if that fails
+        // the one of the foreground process (though I doubt there will be one
+        // if there is no terminal process).
+        pid = m_terminalInterface->foregroundProcessId();
+    }
+
+    if (pid < 1) {
+        return QString();
+    }
+
+    return QFile(QStringLiteral("/proc/%1/cwd").arg(pid)).symLinkTarget();
+#else
     return m_terminalInterface->currentWorkingDirectory();
+#endif
 }
 
 void Terminal::runCommand(const QString& command)
